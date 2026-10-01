@@ -1,6 +1,6 @@
 // public/kb-velo.js
 // Shared Velo helpers for the kb-<page> custom elements. Every page's code imports from here, so collection
-// IDs live in ONE place. Install: Public & Backend > Public > + New file "kb-velo.js", paste this file.
+// IDs and the page -> collections list live in ONE place. Synced from GitHub (AZREFEREE/azref-site-files).
 import wixData from 'wix-data';
 import wixLocationFrontend from 'wix-location-frontend';
 
@@ -68,17 +68,38 @@ export function pageParams(extra) {
   }, extra || {});
 }
 
+/* Which CMS collections each page element needs. The key is the page's element name; it must match the
+   js/kb-<name>.js file in the azref-site-files GitHub repo. */
+export const PAGES = {
+  'kb-home': ['events', 'courses', 'fitness', 'announcements'],
+  'kb-become': ['licenses', 'courses'],
+  'kb-recertify': ['licenses'],
+  'kb-licenses': ['licenses'],
+  'kb-license': ['licenses'],
+  'kb-regional': ['licenses', 'fitness'],
+  'kb-national': ['licenses'],
+  'kb-fitness': ['licenses', 'fitness'],
+  'kb-faq': ['faq'],
+  'kb-assignors': ['assignors', 'programs'],
+  'kb-learn': ['edu'],
+  'kb-about': ['directors'],
+  'kb-contact': [],
+  'kb-register': ['edu'],
+  'kb-abuse': []
+};
+
 /**
  * Load the rows a page needs and hand them to the custom element.
  * @param el      $w('#kbPage')
- * @param keys    collection short names, e.g. ['faq']
+ * @param page    the page element name, e.g. 'kb-faq' (tells the element which page to draw)
  * @param extra   extra params, e.g. { slug, track } on the license page or { eventId } on the register page
  */
-export async function renderPage(el, keys, extra) {
+export async function renderPage(el, page, extra) {
+  const keys = PAGES[page] || [];
   const lists = await Promise.all(keys.map(loadRows));
   const rows = {};
   keys.forEach((k, i) => { rows[k] = lists[i]; });
-  el.setAttribute('data', JSON.stringify({ rows, params: pageParams(extra), today: azToday() }));
+  el.setAttribute('data', JSON.stringify({ page, rows, params: pageParams(extra), today: azToday() }));
 }
 
 /** Current item of a dynamic page's dataset (default ID dynamicDataset), or null on a regular page. */
