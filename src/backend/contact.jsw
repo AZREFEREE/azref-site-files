@@ -1,0 +1,87 @@
+// backend/contact.jsw
+// Saves contact-form messages to the CMS collection "ContactMessages" and returns a reference number C-YYMMDD-NNNN.
+// No email is sent from here (Triggered Emails aren't available). Staff read new messages in CMS > ContactMessages
+// (filter Status = new). Later this function can forward to the ROC (POST https://request.azref.com/api/contact,
+// see contact-form-spec.md) and keep this insert as the backup copy.
+//
+// Collection "ContactMessages" permissions: Read / Create / Update / Delete = Admin only.
+// This code writes with suppressAuth, so site visitors never get direct access to the collection.
+import wixData from 'wix-data';
+
+const COLLECTION = 'ContactMessages';
+const OPTS = { suppressAuth: true };
+
+const TOPICS = {
+  license: 'My license, course or recertification',
+  lc: 'Learning Center or registration trouble',
+  games: 'Getting games or Assignr',
+  upgrade: 'Upgrades, evaluations or fitness tests',
+  badge: 'Badge or uniform',
+  course: 'Hosting a referee course',
+  recognize: 'Recognize a referee',
+  transfer: 'Transferring to Arizona',
+  volunteer: 'Volunteering with ASRA',
+  other: 'Something else'
+};
+const ROLES = ['Referee', 'Parent or guardian of a referee', 'Assignor', 'Coach, club or league',
+  'Tournament or event organizer', 'Someone thinking about refereeing', 'Other'];
+const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+
+function s(v, max) { return String(v === undefined || v === null ? '' : v).trim().slice(0, max || 300); }
+function pad(n, w) { return String(n).padStart(w, '0'); }
+/** Arizona date (UTC-7, no DST) as YYMMDD */
+function azStamp() {
+  const d = new Date(Date.now() - 7 * 3600 * 1000);
+  return String(d.getUTCFullYear()).slice(2) + pad(d.getUTCMonth() + 1, 2) + pad(d.getUTCDate(), 2);
+}
+async function nextRef() {
+  const prefix = `C-${azStamp()}-`;
+  let n = (await wixData.query(COLLECTION).startsWith('ref', prefix).count(OPTS)) + 1;
+  for (let tries = 0; tries < 5; tries++, n++) {
+    const ref = prefix + pad(n, 4);
+    const taken = await wixData.query(COLLECTION).eq('ref', ref).count(OPTS);
+    if (!taken) return ref;
+  }
+  return prefix + pad(1000 + Math.floor(Math.random() * 9000), 4);
+}
+
+/**
+ * sendContact(data) -> { ok: true, ref } | { ok: false, error, fields? }
+ * data: { name, email, phone, ussf, role, topic, message, refName, refMatch,
+ *         dob (YYYY-MM-DD), gender, address, fromState, currentLicense, parentEmail, website (honeypot) }
+ */
+export async function sendContact(data) {
+  data = data || {};
+  // Honeypot: bots fill the hidden "website" field. Pretend it worked, save nothing.
+  if (s(data.website)) return { ok: true, ref: `C-${azStamp()}-0000` };
+
+  const m = {
+    name: s(data.name, 120), email: s(data.email, 200).toLowerCase(), phone: s(data.phone, 40), ussf: s(data.ussf, 30),
+    role: s(data.role, 80), topic: s(data.topic, 30), message: s(data.message, 5000),
+    refName: s(data.refName, 120), refMatch: s(data.refMatch, 200),
+    dob: s(data.dob, 10), gender: s(data.gender, 30), address: s(data.address, 300), fromState: s(data.fromState, 60),
+    currentLicense: s(data.currentLicense, 120), parentEmail: s(data.parentEmail, 200).toLowerCase()
+  };
+
+  if (m.topic === 'redcard' || m.topic === 'abuse') {
+    return { ok: false, error: 'redirect', fields: ['topic'] };
+  }
+  const bad = ['name', 'email', 'role', 'topic', 'message'].filter(k => !m[k]);
+  if (m.email && !EMAIL_RE.test(m.email)) bad.push('email');
+  if (m.topic && !TOPICS[m.topic]) bad.push('topic');
+  if (m.role && ROLES.indexOf(m.role) < 0) bad.push('role');
+  if (m.parentEmail && !EMAIL_RE.test(m.parentEmail)) bad.push('parentEmail');
+  if (bad.length) return { ok: false, error: 'invalid', fields: bad.filter((k, i, a) => a.indexOf(k) === i) };
+
+  // Simple rate limit: 5 messages per email per hour.
+  const recent = await wixData.query(COLLECTION).eq('email', m.email).gt('_createdDate', new Date(Date.now() - 3600 * 1000)).count(OPTS);
+  if (recent >= 5) return { ok: false, error: 'rate' };
+
+  const ref = await nextRef();
+  const topicLabel = TOPICS[m.topic];
+  await wixData.insert(COLLECTION, Object.assign({
+    title: `${ref} · ${topicLabel} · ${m.name}`,
+    ref, status: 'new', source: 'azref.com/contact', topicLabel
+  }, m), OPTS);
+  return { ok: true, ref };
+}

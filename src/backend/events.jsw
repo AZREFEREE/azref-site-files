@@ -1,0 +1,125 @@
+// backend/events.jsw
+// Event registration for Education Events rows whose Registration field is "On this site (ROC)".
+// Saves to CMS collection "EventRegistrations", ONE row per email per event: a second submit with the
+// same email updates that row (keeps the original ref and sign-up time) and returns updated: true.
+// Later this can forward to the ROC (POST https://request.azref.com/api/events/{id}/register, see
+// event-registration-spec.md) and keep this collection as the backup copy.
+//
+// Collection "EventRegistrations" permissions: Read / Create / Update / Delete = Admin only (writes use suppressAuth).
+import wixData from 'wix-data';
+
+const EVENTS = 'Import12';            // Education Events
+const COLLECTION = 'EventRegistrations';
+const OPTS = { suppressAuth: true };
+const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+const EXPERIENCE = ['Less than 1 year', '1 to 2 years', '2 to 4 years', '5 years or more'];
+const FITS = ["Men's", "Women's"];
+const SIZES = ['XS', 'S', 'M', 'L', 'XL', 'XXL', '3XL'];
+
+function s(v, max) { return String(v === undefined || v === null ? '' : v).trim().slice(0, max || 200); }
+function pad(n, w) { return String(n).padStart(w, '0'); }
+function azTodayISO() { return new Date(Date.now() - 7 * 3600 * 1000).toISOString().slice(0, 10); }
+function toISO(v) {
+  if (!v) return '';
+  if (v instanceof Date) return isNaN(v.getTime()) ? '' : v.toISOString().slice(0, 10); // stored at UTC midnight
+  const t = String(v).trim();
+  let m = t.match(/^(\d{4})-(\d{2})-(\d{2})/); if (m) return m[0];
+  m = t.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  return m ? `${m[3]}-${m[1].padStart(2, '0')}-${m[2].padStart(2, '0')}` : '';
+}
+/** "Lunch (11:30 AM)\nTraining and instruction (12:00 to 4:30 PM)" -> [{id:'lunch', label:'Lunch', time:'11:30 AM'}, ...] */
+function parseSessions(text) {
+  return String(text || '').split('\n').map(x => x.trim()).filter(Boolean).map(line => {
+    const m = line.match(/^(.*?)\s*\((.*)\)\s*$/);
+    const label = m ? m[1] : line, time = m ? m[2] : '';
+    return { id: label.split(' ')[0].toLowerCase().replace(/[^a-z0-9]/g, ''), label, time };
+  });
+}
+function askList(text) { return String(text || '').split(',').map(x => x.trim().toLowerCase()).filter(Boolean); }
+function slugify(t) { return String(t || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, ''); }
+/** Event id from the Link column: "register.html?e=academy-2026" or "/register/academy-2026". */
+function linkId(link) { const m = String(link || '').match(/[?&]e=([^&#]+)|\/register\/([^\/?#]+)/); return m ? decodeURIComponent(m[1] || m[2]) : ''; }
+/** Same rule as the kb-register element (src/cms-map.js): Slug field, else the id in Link, else the title. */
+function eventKey(ev) { return ev.slug || linkId(ev.link) || slugify(ev.title) || ev._id; }
+/** Find the Education Events row: by item _id first, else by the page's event id (slug / link id / title). */
+async function findEvent(eventItemId, eventId) {
+  if (eventItemId) {
+    try { const ev = await wixData.get(EVENTS, eventItemId, OPTS); if (ev) return ev; } catch (e) { /* fall through */ }
+  }
+  if (!eventId) return null;
+  const all = await wixData.query(EVENTS).limit(1000).find(OPTS);
+  return all.items.find(ev => eventKey(ev) === eventId) || null;
+}
+
+/**
+ * registerForEvent(eventItemId, data, eventId) -> { ok, ref, updated, status } | { ok:false, error, fields? }
+ * eventItemId = the Education Events item _id (the kb-register element sends it in the kb-submit event);
+ * eventId     = the page's event id (e.g. academy-2026), used when the _id is missing.
+ * data: { firstName, lastName, email, phone, ussfId, sessions: [ids], experience, shirtFit, shirtSize, dietary, website }
+ */
+export async function registerForEvent(eventItemId, data, eventId) {
+  data = data || {};
+  if (s(data.website)) return { ok: true, ref: 'E-0000', updated: false, status: 'Registered' }; // honeypot
+
+  const ev = await findEvent(eventItemId, eventId);
+  if (!ev) return { ok: false, error: 'notfound' };
+  if (!/on this site/i.test(String(ev.registration || ''))) return { ok: false, error: 'closed' };
+  const today = azTodayISO(), date = toISO(ev.date), closes = toISO(ev.registrationCloses);
+  if ((date && date < today) || (closes && closes < today)) return { ok: false, error: 'closed' };
+
+  const sessions = parseSessions(ev.sessions), ask = askList(ev.askFor);
+  const r = {
+    firstName: s(data.firstName, 80), lastName: s(data.lastName, 80), email: s(data.email).toLowerCase(),
+    phone: s(data.phone, 40), ussfId: s(data.ussfId, 30),
+    sessions: (Array.isArray(data.sessions) ? data.sessions : []).map(x => s(x, 40)).filter(id => sessions.some(z => z.id === id)),
+    experience: ask.indexOf('experience') > -1 ? s(data.experience, 40) : '',
+    shirtFit: ask.indexOf('shirt') > -1 ? s(data.shirtFit, 20) : '',
+    shirtSize: ask.indexOf('shirt') > -1 ? s(data.shirtSize, 10) : '',
+    dietary: ask.indexOf('dietary') > -1 ? s(data.dietary, 300) : ''
+  };
+  const bad = ['firstName', 'lastName', 'email', 'phone'].filter(k => !r[k]);
+  if (r.email && !EMAIL_RE.test(r.email)) bad.push('email');
+  if (sessions.length && !r.sessions.length) bad.push('sessions');
+  if (ask.indexOf('experience') > -1 && EXPERIENCE.indexOf(r.experience) < 0) bad.push('experience');
+  if (ask.indexOf('shirt') > -1 && (FITS.indexOf(r.shirtFit) < 0 || SIZES.indexOf(r.shirtSize) < 0)) bad.push('shirtSize');
+  if (bad.length) return { ok: false, error: 'invalid', fields: bad.filter((k, i, a) => a.indexOf(k) === i) };
+
+  const key = eventKey(ev);
+  const record = Object.assign({}, r, {
+    title: `${r.firstName} ${r.lastName}`,
+    eventId: key, eventTitle: ev.title, eventDate: date,
+    sessions: r.sessions.join(', '),
+    sessionLabels: sessions.filter(z => r.sessions.indexOf(z.id) > -1).map(z => z.label).join(', '),
+    source: 'Web'
+  });
+
+  const existing = await wixData.query(COLLECTION).eq('eventId', key).eq('email', r.email).limit(1).find(OPTS);
+  if (existing.items.length) {
+    const old = existing.items[0];
+    // Keep ref, status and original sign-up time (= place in line); overwrite the answers.
+    const upd = Object.assign({}, old, record, { _id: old._id, ref: old.ref, status: old.status === 'Cancelled' ? 'Registered' : old.status, registeredAt: old.registeredAt, updatedAt: new Date() });
+    await wixData.update(COLLECTION, upd, OPTS);
+    return { ok: true, ref: old.ref, updated: true, status: upd.status };
+  }
+
+  // New registration: ref E-<4 letters of event id><YY>-NNNN, e.g. E-ACAD26-0039
+  const letters = String(key).replace(/[^a-z]/gi, '').slice(0, 4).toUpperCase() || 'EVNT';
+  const yy = (date || today).slice(2, 4);
+  const count = await wixData.query(COLLECTION).eq('eventId', key).count(OPTS);
+  let n = count + 1, ref = '';
+  for (let tries = 0; tries < 5; tries++, n++) {
+    const tryRef = `E-${letters}${yy}-${pad(n, 4)}`;
+    if (!(await wixData.query(COLLECTION).eq('ref', tryRef).count(OPTS))) { ref = tryRef; break; }
+  }
+  if (!ref) ref = `E-${letters}${yy}-${pad(1000 + Math.floor(Math.random() * 9000), 4)}`;
+
+  // Capacity (optional): when full, new sign-ups go on the waitlist.
+  let status = 'Registered';
+  const cap = parseInt(ev.capacity, 10);
+  if (cap > 0) {
+    const taken = await wixData.query(COLLECTION).eq('eventId', key).eq('status', 'Registered').count(OPTS);
+    if (taken >= cap) status = 'Waitlist';
+  }
+  await wixData.insert(COLLECTION, Object.assign(record, { ref, status, registeredAt: new Date(), updatedAt: new Date() }), OPTS);
+  return { ok: true, ref, updated: false, status };
+}
