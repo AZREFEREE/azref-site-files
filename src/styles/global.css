@@ -6,7 +6,7 @@
 .kb-nav .button__label { font-family: barlow, sans-serif !important; font-weight: 700 !important; font-size: 15px !important; color: #121417; letter-spacing: 0; }
 .kb-nav:hover { background: #f2f3f1; }
 .kb-nav-yellow { box-shadow: inset 0 -5px 0 #f6c915; }
-.kb-nav-green { box-shadow: inset 0 -5px 0 #7fd343; }
+.kb-nav-green { box-shadow: inset 0 -5px 0 #8bc26a; }
 .kb-nav-blue { box-shadow: inset 0 -5px 0 #35a4e4; }
 .kb-nav-red { box-shadow: inset 0 -5px 0 #ef5a3c; }
 
@@ -31,4 +31,4 @@
 .kb-btn-ghost .button__label { color: #121417; }
 
 /* Header section: white with the 4-color kit stripe along the bottom */
-.kb-hdr { background: linear-gradient(90deg, #f6c915 0 25%, #7fd343 25% 50%, #35a4e4 50% 75%, #ef5a3c 75% 100%) left bottom / 100% 6px no-repeat, #ffffff !important; }
+.kb-hdr { background: linear-gradient(90deg, #f6c915 0 25%, #8bc26a 25% 50%, #35a4e4 50% 75%, #ef5a3c 75% 100%) left bottom / 100% 6px no-repeat, #ffffff !important; }
