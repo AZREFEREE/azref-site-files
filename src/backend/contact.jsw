@@ -1,13 +1,14 @@
 // backend/contact.jsw
 // Saves contact-form messages to the CMS collection "ContactMessages" and returns a reference number C-YYMMDD-NNNN.
-// No email is sent from here (Triggered Emails aren't available). Staff read new messages in CMS > ContactMessages
-// (filter Status = new). Later this function can forward to the ROC (POST https://request.azref.com/api/contact,
+// After saving, it emails a branded copy to the sender and a notification to admin@azref.com (backend/kb-mail.js).
+// Staff can also read every message in CMS > ContactMessages (filter Status = new). Later this function can forward to the ROC (POST https://request.azref.com/api/contact,
 // see contact-form-spec.md) and keep this insert as the backup copy.
 //
 // Collection "ContactMessages" permissions: Read / Create / Update / Delete = Admin only.
 // This code writes with suppressAuth, so site visitors never get direct access to the collection.
 import wixData from 'wix-data';
 import { ensureCollection } from 'backend/kb-collections';
+import { sendEmail, sendAdmin } from 'backend/kb-mail';
 
 const COLLECTION = 'ContactMessages';
 const OPTS = { suppressAuth: true };
@@ -85,5 +86,16 @@ export async function sendContact(data) {
     title: `${ref} · ${topicLabel} · ${m.name}`,
     ref, status: 'new', source: 'azref.com/contact', topicLabel
   }, m), OPTS);
-  return { ok: true, ref };
+
+  // Emails: a copy to the sender, a notification to the ASRA inbox. Sent together; failures are logged only.
+  const first = m.name.split(/\s+/)[0], last = m.name.split(/\s+/).slice(1).join(' ');
+  const extra = [['Date of birth', m.dob], ['Gender', m.gender], ['Address', m.address], ['Coming from (state)', m.fromState],
+    ['Current license', m.currentLicense], ['Parent email', m.parentEmail], ['Referee being recognized', m.refName],
+    ['Matched referee', m.refMatch]].filter(x => x[1]).map(x => x[0] + ': ' + x[1]).join('\n');
+  const mailed = await Promise.all([
+    sendEmail('contactConfirm', { email: m.email, first, last }, { ref, name: first, topic: topicLabel, message: m.message }),
+    sendAdmin('contactAdmin', { ref, name: m.name, email: m.email, phone: m.phone, role: m.role, ussf: m.ussf,
+      topic: topicLabel, message: m.message, details: extra })
+  ]);
+  return { ok: true, ref, emailed: mailed[0] };
 }

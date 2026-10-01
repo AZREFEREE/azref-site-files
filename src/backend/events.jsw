@@ -8,6 +8,7 @@
 // Collection "EventRegistrations" permissions: Read / Create / Update / Delete = Admin only (writes use suppressAuth).
 import wixData from 'wix-data';
 import { ensureCollection } from 'backend/kb-collections';
+import { sendEmail, sendAdmin } from 'backend/kb-mail';
 
 const EVENTS = 'Import12';            // Education Events
 const COLLECTION = 'EventRegistrations';
@@ -50,6 +51,31 @@ async function findEvent(eventItemId, eventId) {
   if (!eventId) return null;
   const all = await wixData.query(EVENTS).limit(1000).find(OPTS);
   return all.items.find(ev => eventKey(ev) === eventId) || null;
+}
+
+const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+/** "2026-10-18" -> "Sunday, October 18, 2026" */
+function longDate(iso) {
+  const m = String(iso || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return '';
+  const d = new Date(Date.UTC(+m[1], +m[2] - 1, +m[3]));
+  return `${DAYS[d.getUTCDay()]}, ${MONTHS[d.getUTCMonth()]} ${d.getUTCDate()}, ${m[1]}`;
+}
+/** Confirmation to the registrant + notification to admin@azref.com. Failures are logged only (backend/kb-mail.js). */
+async function mailRegistration(ev, rec, ref, status, updated) {
+  const when = [longDate(rec.eventDate), s(ev.timeText, 80), s(ev.venue, 120), s(ev.address, 200)].filter(Boolean).join('\n');
+  const statusText = status === 'Waitlist' ? 'Waitlist (we\u2019ll contact you if a spot opens up)' : status;
+  const details = [['Experience', rec.experience], ['Shirt', [rec.shirtFit, rec.shirtSize].filter(Boolean).join(' ')],
+    ['Dietary needs', rec.dietary], ['Change', updated ? 'Updated an earlier registration' : '']]
+    .filter(x => x[1]).map(x => x[0] + ': ' + x[1]).join('\n');
+  const res = await Promise.all([
+    sendEmail('regConfirm', { email: rec.email, first: rec.firstName, last: rec.lastName },
+      { ref, name: rec.firstName, event: ev.title, when, status: statusText, sessions: rec.sessionLabels }),
+    sendAdmin('regAdmin', { ref, name: `${rec.firstName} ${rec.lastName}`, email: rec.email, phone: rec.phone, ussf: rec.ussfId,
+      event: ev.title, when, status: updated ? `${status} (updated)` : status, sessions: rec.sessionLabels, details })
+  ]);
+  return res[0];
 }
 
 /**
@@ -101,7 +127,8 @@ export async function registerForEvent(eventItemId, data, eventId) {
     // Keep ref, status and original sign-up time (= place in line); overwrite the answers.
     const upd = Object.assign({}, old, record, { _id: old._id, ref: old.ref, status: old.status === 'Cancelled' ? 'Registered' : old.status, registeredAt: old.registeredAt, updatedAt: new Date() });
     await wixData.update(COLLECTION, upd, OPTS);
-    return { ok: true, ref: old.ref, updated: true, status: upd.status };
+    const emailed = await mailRegistration(ev, upd, old.ref, upd.status, true);
+    return { ok: true, ref: old.ref, updated: true, status: upd.status, emailed };
   }
 
   // New registration: ref E-<4 letters of event id><YY>-NNNN, e.g. E-ACAD26-0039
@@ -123,5 +150,6 @@ export async function registerForEvent(eventItemId, data, eventId) {
     if (taken >= cap) status = 'Waitlist';
   }
   await wixData.insert(COLLECTION, Object.assign(record, { ref, status, registeredAt: new Date(), updatedAt: new Date() }), OPTS);
-  return { ok: true, ref, updated: false, status };
+  const emailed = await mailRegistration(ev, record, ref, status, false);
+  return { ok: true, ref, updated: false, status, emailed };
 }
