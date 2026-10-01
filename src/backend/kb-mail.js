@@ -10,9 +10,9 @@ import { elevate } from 'wix-auth';
 export const ADMIN_EMAIL = 'admin@azref.com';
 export const EMAILS = {
   contactConfirm: 'VWm6OMe',   // "We got your message (${ref})"            -> the person who wrote in
-  contactAdmin: '',            // "New message ${ref}: ${topic} from ${name}" -> admin@azref.com
-  regConfirm: '',              // "You're registered: ${event} (${ref})"       -> the registrant
-  regAdmin: ''                 // "New registration ${ref}: ${event} - ${name}" -> admin@azref.com
+  contactAdmin: 'VWm79qB',    // "New message ${ref}: ${topic} from ${name}" -> admin@azref.com
+  regConfirm: 'VWm7fNy',      // "You're registered: ${event} (${ref})"       -> the registrant
+  regAdmin: 'VWm84py',         // "New registration ${ref}: ${event} - ${name}" -> admin@azref.com
 };
 
 const appendOrCreate = elevate(contacts.appendOrCreateContact);
