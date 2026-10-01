@@ -85,7 +85,8 @@ export const PAGES = {
   'kb-about': ['directors'],
   'kb-contact': [],
   'kb-register': ['edu'],
-  'kb-abuse': []
+  'kb-abuse': [],
+  'kb-notfound': []
 };
 
 /**
