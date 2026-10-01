@@ -1,0 +1,14 @@
+{
+ "contact-confirm": {
+  "subject": "We got your message (${ref})"
+ },
+ "contact-admin": {
+  "subject": "New message ${ref}: ${topic} from ${name}"
+ },
+ "reg-confirm": {
+  "subject": "You're registered: ${event} (${ref})"
+ },
+ "reg-admin": {
+  "subject": "New registration ${ref}: ${event} - ${name}"
+ }
+}
