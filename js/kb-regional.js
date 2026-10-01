@@ -734,7 +734,7 @@ function (document, location, history, KB) {
   }
   function samePath(a, b) { var n = function (x) { return (x || '/').replace(/\/+$/, '') || '/'; }; return n(a) === n(b); }
 
-  var KBPage = function () { return Reflect.construct(HTMLElement, [], KBPage); };
+  var KBPage = function () { return Reflect.construct(HTMLElement, [], new.target || KBPage); };
   KBPage.prototype = Object.create(HTMLElement.prototype);
   KBPage.prototype.constructor = KBPage;
   Object.setPrototypeOf(KBPage, HTMLElement);
