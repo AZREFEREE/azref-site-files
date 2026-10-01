@@ -1,8 +1,9 @@
-// Loader for the kb-faq.js page element. The real code lives in js/kb-faq.js in this repo,
-// served by jsDelivr (Wix's code bundler breaks native custom element classes,
-// so it can't be bundled here). Edit js/kb-faq.js, not this file.
+// Loader for the page element. The real code lives in js/kb-faq.js in the azref-site-files GitHub repo and is
+// served by jsDelivr (Wix's code bundler breaks native custom element classes, so it can't be bundled here).
+// Edit js/kb-faq.js, not this file. After changing any js/ file, run: bash tools/bump-version.sh
 (function () {
-  var src = 'https://cdn.jsdelivr.net/gh/AZREFEREE/azref-site-files@main/js/kb-faq.js';
+  var VERSION = '202610010340';
+  var src = 'https://cdn.jsdelivr.net/gh/AZREFEREE/azref-site-files@main/js/kb-faq.js?v=' + VERSION;
   if (document.querySelector('script[src="' + src + '"]')) return;
   var s = document.createElement('script');
   s.src = src;

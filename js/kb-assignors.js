@@ -699,8 +699,9 @@ function (document, location, history, KB) {
      data attribute ({"page":"kb-become",...}) and hands the element to that page's code, loading the page's
      file first if it isn't loaded yet. This keeps pages right when Wix switches pages without a reload. */
   if (!window.customElements.get('wix-default-custom-element')) {
-    var KB_BASE = ((document.currentScript && document.currentScript.src) || '').replace(/[^\/]*$/, '') ||
-      'https://cdn.jsdelivr.net/gh/AZREFEREE/azref-site-files@main/js/';
+    var KB_SRC = (document.currentScript && document.currentScript.src) || '';
+    var KB_BASE = KB_SRC.split('?')[0].replace(/[^\/]*$/, '') || 'https://cdn.jsdelivr.net/gh/AZREFEREE/azref-site-files@main/js/';
+    var KB_VER = KB_SRC.indexOf('?') >= 0 ? '?' + KB_SRC.split('?')[1] : '';   /* ?v=... from the loader, busts browser caches */
     var kbBind = function (el) {
       if (el.__kbCls) return el.__kbCls;
       var raw = el.getAttribute('data');
@@ -726,7 +727,7 @@ function (document, location, history, KB) {
         };
         window.addEventListener('kb-page-defined', h);
       }
-      var src = KB_BASE + name + '.js';
+      var src = KB_BASE + name + '.js' + KB_VER;
       if (!document.querySelector('script[src="' + src + '"]')) {
         var s = document.createElement('script'); s.src = src; s.async = true; document.head.appendChild(s);
       }
