@@ -1,14 +1,17 @@
 // backend/contact.jsw
 // Saves contact-form messages to the CMS collection "ContactMessages" and returns a reference number C-YYMMDD-NNNN.
 // After saving, it emails a branded copy to the sender and a notification to admin@azref.com (backend/kb-mail.js).
-// Staff can also read every message in CMS > ContactMessages (filter Status = new). Later this function can forward to the ROC (POST https://request.azref.com/api/contact,
-// see contact-form-spec.md) and keep this insert as the backup copy.
+// Staff can also read every message in CMS > ContactMessages (filter Status = new).
+// ROC Inbox (10/1/26): after saving, each message is also sent to the ROC (asra-api p-contact-in, server to server) with its C- number,
+// where admins reply, assign and close it (admin.azref.com #/inbox). This CMS insert stays as the backup copy; if the ROC can't be
+// reached the sender still gets their confirmation and admin@ still gets the notice.
 //
 // Collection "ContactMessages" permissions: Read / Create / Update / Delete = Admin only.
 // This code writes with suppressAuth, so site visitors never get direct access to the collection.
 import wixData from 'wix-data';
 import { ensureCollection } from 'backend/kb-collections';
 import { sendEmail, sendAdmin } from 'backend/kb-mail';
+import { fetch } from 'wix-fetch';
 
 const COLLECTION = 'ContactMessages';
 const OPTS = { suppressAuth: true };
@@ -28,6 +31,23 @@ const TOPICS = {
 const ROLES = ['Referee', 'Parent or guardian of a referee', 'Assignor', 'Coach, club or league',
   'Tournament or event organizer', 'Someone thinking about refereeing', 'Other'];
 const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+const ROC_IN = 'https://knuchrlsmebojlzytrcs.functions.supabase.co/asra-api/p-contact-in';
+
+/** Send the saved message to the ROC Inbox. Returns { ok, ref, id, roc } or null; never throws. */
+async function toRoc(payload) {
+  try {
+    const res = await Promise.race([
+      fetch(ROC_IN, { method: 'post', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 8000))
+    ]);
+    const j = await res.json();
+    if (!j || !j.ok) console.error('contact -> ROC refused: ' + JSON.stringify(j));
+    return j && j.ok ? j : null;
+  } catch (e) {
+    console.error('contact -> ROC failed: ' + (e && (e.message || e)));
+    return null;
+  }
+}
 
 function s(v, max) { return String(v === undefined || v === null ? '' : v).trim().slice(0, max || 300); }
 function pad(n, w) { return String(n).padStart(w, '0'); }
@@ -87,15 +107,18 @@ export async function sendContact(data) {
     ref, status: 'new', source: 'azref.com/contact', topicLabel
   }, m), OPTS);
 
+  // The ROC Inbox gets it too (same C- number). A failure is logged only.
+  const roc = await toRoc(Object.assign({ ref, source: 'azref.com/contact' }, m));
+
   // Emails: a copy to the sender, a notification to the ASRA inbox. Sent together; failures are logged only.
   const first = m.name.split(/\s+/)[0], last = m.name.split(/\s+/).slice(1).join(' ');
   const extra = [['Date of birth', m.dob], ['Gender', m.gender], ['Address', m.address], ['Coming from (state)', m.fromState],
     ['Current license', m.currentLicense], ['Parent email', m.parentEmail], ['Referee being recognized', m.refName],
-    ['Matched referee', m.refMatch]].filter(x => x[1]).map(x => x[0] + ': ' + x[1]).join('\n');
+    ['Matched referee', m.refMatch], ['Open it in the ROC', roc && roc.roc]].filter(x => x[1]).map(x => x[0] + ': ' + x[1]).join('\n');
   const mailed = await Promise.all([
     sendEmail('contactConfirm', { email: m.email, first, last }, { ref, name: first, topic: topicLabel, message: m.message }),
     sendAdmin('contactAdmin', { ref, name: m.name, email: m.email, phone: m.phone, role: m.role, ussf: m.ussf,
       topic: topicLabel, message: m.message, details: extra })
   ]);
-  return { ok: true, ref, emailed: mailed[0] };
+  return { ok: true, ref, emailed: mailed[0], inRoc: !!roc };
 }
