@@ -1,0 +1,9 @@
+// backend/news.jsw
+// Creates the public "News" CMS collection (with two starter posts) if it doesn't exist yet. kb-velo.js calls this
+// only when a page that shows news finds no rows, so it costs nothing once the collection has posts.
+import { ensureCollection } from 'backend/kb-collections.js';
+
+export async function ensureNews() {
+  await ensureCollection('News');
+  return true;
+}

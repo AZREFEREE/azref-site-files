@@ -1,9 +1,9 @@
-// Loader for the page element. The real code lives in js/kb-national.js in the azref-site-files GitHub repo and is
+// Loader for the page element. The real code lives in js/kb-news.js in the azref-site-files GitHub repo and is
 // served by jsDelivr (Wix's code bundler breaks native custom element classes, so it can't be bundled here).
-// Edit js/kb-national.js, not this file. After changing any js/ file, run: bash tools/bump-version.sh
+// Edit js/kb-news.js, not this file. After changing any js/ file, run: bash tools/bump-version.sh
 (function () {
   var VERSION = '202610011552';
-  var src = 'https://cdn.jsdelivr.net/gh/AZREFEREE/azref-site-files@main/js/kb-national.js?v=' + VERSION;
+  var src = 'https://cdn.jsdelivr.net/gh/AZREFEREE/azref-site-files@main/js/kb-news.js?v=' + VERSION;
   if (document.querySelector('script[src="' + src + '"]')) return;
   var s = document.createElement('script');
   s.src = src;

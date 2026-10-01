@@ -3,6 +3,7 @@
 // IDs and the page -> collections list live in ONE place. Synced from GitHub (AZREFEREE/azref-site-files).
 import wixData from 'wix-data';
 import wixLocationFrontend from 'wix-location-frontend';
+import { ensureNews } from 'backend/news.jsw';
 
 /* Wix CMS collection IDs (CMS > collection > Settings shows the ID). */
 export const COLLECTIONS = {
@@ -15,7 +16,8 @@ export const COLLECTIONS = {
   faq: 'Import11',            // FAQ
   edu: 'Import12',            // Education Events
   licenses: 'Import13',       // License Requirements
-  courses: 'Import14'         // Referee Courses
+  courses: 'Import14',        // Referee Courses
+  news: 'News'                // News (homepage list + /news page; created by backend/news.jsw if missing)
 };
 
 /** Arizona date (UTC-7 all year, no DST) as YYYY-MM-DD. */
@@ -71,7 +73,7 @@ export function pageParams(extra) {
 /* Which CMS collections each page element needs. The key is the page's element name; it must match the
    js/kb-<name>.js file in the azref-site-files GitHub repo. */
 export const PAGES = {
-  'kb-home': ['events', 'courses', 'fitness', 'announcements'],
+  'kb-home': ['events', 'courses', 'fitness', 'announcements', 'news'],
   'kb-become': ['licenses', 'courses'],
   'kb-recertify': ['licenses'],
   'kb-licenses': ['licenses'],
@@ -86,7 +88,8 @@ export const PAGES = {
   'kb-contact': [],
   'kb-register': ['edu'],
   'kb-abuse': [],
-  'kb-notfound': []
+  'kb-notfound': [],
+  'kb-news': ['news']
 };
 
 /**
@@ -98,6 +101,11 @@ export const PAGES = {
 export async function renderPage(el, page, extra) {
   const keys = PAGES[page] || [];
   const lists = await Promise.all(keys.map(loadRows));
+  const ni = keys.indexOf('news');
+  if (ni > -1 && !lists[ni].length) {
+    // First visit after launch: create the News collection (with starter posts), then read it again.
+    try { await ensureNews(); lists[ni] = await loadRows('news'); } catch (e) { console.error('kb: could not set up News', e); }
+  }
   const rows = {};
   keys.forEach((k, i) => { rows[k] = lists[i]; });
   el.setAttribute('data', JSON.stringify({ page, rows, params: pageParams(extra), today: azToday() }));
