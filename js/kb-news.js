@@ -454,7 +454,7 @@ function KBCms(opts) {
         image: media(get(r, ['image', 'coverPhoto', 'coverImage'])), video: T(r, ['videoUrl', 'videoLink', 'video']),
         doc: doc(get(r, ['document', 'pdf'])), docLabel: T(r, ['documentLabel', 'pdfButtonText', 'pdfLabel']),
         link: T(r, ['linkUrl', 'buttonLink', 'link']), linkLabel: T(r, ['linkLabel', 'buttonText']),
-        pinned: B(r, ['pinned', 'pinToTop']), on: show === undefined ? true : bool(show) };
+        pinned: B(r, ['pinned', 'pinToTop']), on: bool(show) };
     }).filter(function (n) { return n.on && n.title; })
       .sort(by(function (n) { return n.pinned ? 0 : 1; }, function (n) { return -(+String(n.date).replace(/-/g, '') || 0); }, function (n) { return n.title; }));
   }
