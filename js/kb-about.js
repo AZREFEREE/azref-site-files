@@ -377,7 +377,7 @@ function (document, location, history, KB) {
     var pic=d.open?'<div class="dpic open" aria-hidden="true">?</div>':d.photo?'<img class="dpic" src="'+d.photo+'" alt="" loading="lazy">':'<div class="dpic ini" aria-hidden="true">'+ini(d.name)+'</div>';
     var name=d.open?'Open seat':esc(d.name);
     var mail=d.email?'<a class="dmail" href="mailto:'+d.email+'">'+esc(d.email)+'</a>':d.open?'<a class="dmail" href="contact.html?topic=volunteer">Accepting applications</a>':'';
-    return '<article class="dcard'+(d.open?' is-open':'')+'">'+pic+'<div><h3>'+name+'</h3><p>'+esc(d.role).replace(/\n/g,'<br>')+'</p>'+(d.committee?'<span class="dtag">State Referee Committee</span>':'')+mail+'</div></article>';
+    return '<article class="dcard'+(d.open?' is-open':'')+'">'+pic+'<div><h3>'+name+'</h3><p>'+esc(d.role).replace(/\n/g,'<br>')+'</p>'+mail+'</div></article>';
   }).join('');
 })();
 }
