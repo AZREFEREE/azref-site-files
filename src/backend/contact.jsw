@@ -7,6 +7,7 @@
 // Collection "ContactMessages" permissions: Read / Create / Update / Delete = Admin only.
 // This code writes with suppressAuth, so site visitors never get direct access to the collection.
 import wixData from 'wix-data';
+import { ensureCollection } from 'backend/kb-collections';
 
 const COLLECTION = 'ContactMessages';
 const OPTS = { suppressAuth: true };
@@ -51,6 +52,7 @@ async function nextRef() {
  *         dob (YYYY-MM-DD), gender, address, fromState, currentLicense, parentEmail, website (honeypot) }
  */
 export async function sendContact(data) {
+  await ensureCollection(COLLECTION);
   data = data || {};
   // Honeypot: bots fill the hidden "website" field. Pretend it worked, save nothing.
   if (s(data.website)) return { ok: true, ref: `C-${azStamp()}-0000` };

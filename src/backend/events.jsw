@@ -7,6 +7,7 @@
 //
 // Collection "EventRegistrations" permissions: Read / Create / Update / Delete = Admin only (writes use suppressAuth).
 import wixData from 'wix-data';
+import { ensureCollection } from 'backend/kb-collections';
 
 const EVENTS = 'Import12';            // Education Events
 const COLLECTION = 'EventRegistrations';
@@ -58,6 +59,7 @@ async function findEvent(eventItemId, eventId) {
  * data: { firstName, lastName, email, phone, ussfId, sessions: [ids], experience, shirtFit, shirtSize, dietary, website }
  */
 export async function registerForEvent(eventItemId, data, eventId) {
+  await ensureCollection(COLLECTION);
   data = data || {};
   if (s(data.website)) return { ok: true, ref: 'E-0000', updated: false, status: 'Registered' }; // honeypot
 
