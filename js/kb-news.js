@@ -521,6 +521,11 @@ function (document, location, history, KB) {
     if(q){ document.getElementById('nMiss').hidden=false; }
     list.innerHTML=L.length?'<div class="n-grid">'+L.map(card).join('')+'</div>':'<p class="n-empty">No news posted right now. Check back soon.</p>';
   }
+  /* Links between posts stay on this page (only ?n= changes). Wix ignores those clicks, so load them directly. */
+  function go(e){ var a=e.target&&e.target.closest?e.target.closest('a[href]'):null; if(!a||a.target==='_blank'||e.defaultPrevented||e.metaKey||e.ctrlKey||e.shiftKey) return;
+    var u; try{ u=new URL(a.href, window.location.href); }catch(x){ return; }
+    if(u.origin===window.location.origin&&u.pathname===window.location.pathname&&u.search!==window.location.search){ e.preventDefault(); e.stopPropagation(); window.location.assign(u.href); } }
+  [document.querySelector('.crumbs'), document.querySelector('main')].forEach(function(el){ if(el) el.addEventListener('click',go); });
 })();
 }
 ];
