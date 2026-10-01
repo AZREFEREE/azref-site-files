@@ -1,0 +1,34 @@
+/* ASRA new design (Kit Bag). Only kb-* classes; nothing here touches the old pages. */
+
+/* Header nav links */
+.kb-nav { background: transparent; border-radius: 0; box-shadow: inset 0 -5px 0 #121417; padding: 6px 8px 10px !important; }
+.kb-nav .button__label, .kb-recert .button__label, .kb-abuse .button__label, .kb-btn .button__label { white-space: nowrap; }
+.kb-nav .button__label { font-family: barlow, sans-serif !important; font-weight: 700 !important; font-size: 15px !important; color: #121417; letter-spacing: 0; }
+.kb-nav:hover { background: #f2f3f1; }
+.kb-nav-yellow { box-shadow: inset 0 -5px 0 #f6c915; }
+.kb-nav-green { box-shadow: inset 0 -5px 0 #7fd343; }
+.kb-nav-blue { box-shadow: inset 0 -5px 0 #35a4e4; }
+.kb-nav-red { box-shadow: inset 0 -5px 0 #ef5a3c; }
+
+/* Header utility buttons */
+.kb-recert { background: #f6c915; box-shadow: inset 0 0 0 2px #121417; border-radius: 4px; }
+.kb-recert .button__label { font-family: barlow, sans-serif !important; font-weight: 700 !important; font-size: 17px !important; color: #121417; }
+.kb-recert:hover { background: #121417; }
+.kb-recert:hover .button__label { color: #f6c915; }
+.kb-abuse { background: transparent; box-shadow: inset 0 0 0 2px #ef5a3c; border-radius: 4px; }
+.kb-abuse .button__label { font-family: barlow, sans-serif !important; font-weight: 700 !important; font-size: 14.5px !important; color: #b8321a; }
+.kb-abuse:hover { background: #ef5a3c; }
+.kb-abuse:hover .button__label { color: #121417; }
+
+/* Generic buttons */
+.kb-btn { background: #121417; border-radius: 4px; }
+.kb-btn .button__label { font-family: barlow, sans-serif !important; font-weight: 700 !important; font-size: 18px !important; color: #ffffff; }
+.kb-btn:hover { background: #3b3f45; }
+.kb-btn-yellow { background: #f6c915; }
+.kb-btn-yellow .button__label { color: #121417; }
+.kb-btn-yellow:hover { background: #ffffff; }
+.kb-btn-ghost { background: transparent; box-shadow: inset 0 0 0 2px #121417; }
+.kb-btn-ghost .button__label { color: #121417; }
+
+/* Header section: white with the 4-color kit stripe along the bottom */
+.kb-hdr { background: linear-gradient(90deg, #f6c915 0 25%, #7fd343 25% 50%, #35a4e4 50% 75%, #ef5a3c 75% 100%) left bottom / 100% 6px no-repeat, #ffffff !important; }
