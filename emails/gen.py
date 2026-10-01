@@ -37,7 +37,7 @@ def shell(kicker,body,footer):
 {body}
 <tr><td style="background:#121417;padding:18px 28px;color:#c9ccd1;font-size:12px;line-height:1.5;">
 <b style="color:#ffffff;">Arizona State Referee Administration</b><br>
-The U.S. Soccer State Referee Program for Arizona &middot; <a href="https://www.azref.com" style="color:#f6c915;text-decoration:none;">azref.com</a><br>
+The U.S. Soccer State Referee Committee for Arizona &middot; <a href="https://www.azref.com" style="color:#f6c915;text-decoration:none;">azref.com</a><br>
 {footer}
 </td></tr>
 </table></td></tr></table>'''

@@ -186,6 +186,11 @@ function KBCms(opts) {
     for (var i = 0; i < names.length; i++) { var v = r[norm(names[i])]; if (v !== undefined && v !== null && v !== '') return v; }
     return undefined;
   }
+  /* CMS Rich Text from the Wix editor carries Wix theme classes (e.g. class="font_8" = small text) and inline
+     styles that shrink answers on the live site. Keep the tags (p, b, a, lists), drop the styling. */
+  function cleanRich(h) {
+    return String(h || '').replace(/\s(?:class|style)=("[^"]*"|'[^']*')/gi, '').replace(/<\/?span\b[^>]*>/gi, '');
+  }
   function txt(v) {
     if (v == null) return '';
     if (typeof v === 'string') return v.replace(/\r\n?/g, '\n').trim();
@@ -358,7 +363,7 @@ function KBCms(opts) {
     var items = rows(R, 'faq').map(function (r) {
       var cn = T(r, ['category']), key = T(r, ['categoryKey']) || keyOf[cn.toLowerCase()] || slugify(cn) || 'other';
       if (!names[key]) names[key] = cn || key;
-      return { cat: key, q: T(r, ['question', 'title']), a: txt(get(r, ['answer'])), order: N(r, ['order', 'sortOrder']) };
+      return { cat: key, q: T(r, ['question', 'title']), a: cleanRich(txt(get(r, ['answer']))), order: N(r, ['order', 'sortOrder']) };
     }).filter(function (i) { return i.q; }).sort(by(function (i) { return i.order; }, function (i) { return i.q; }));
     var used = {}; items.forEach(function (i) { used[i.cat] = 1; });
     var cats = FAQ_CATS.filter(function (c) { return used[c[0]]; }).map(function (c) { return [c[0], c[1]]; });
