@@ -53,10 +53,10 @@ T['contact-confirm']=dict(subject="We got your message (${ref})",html=shell("Mes
   button("Visit azref.com","https://www.azref.com"),
   "You&rsquo;re getting this because you sent us a message through the contact form on azref.com."))
 T['contact-admin']=dict(subject="New message ${ref}: ${topic} from ${name}",html=shell("New contact message",
-  para(H1("${name} sent a message")+P('Reply to them at '+A("mailto:${email}","${email}")+' and mention reference <b>${ref}</b>. The message is also saved in the CMS under <b>Contact Messages</b>.',True),"30px 28px 8px")+
+  para(H1("${name} sent a message")+P('Answer it in the <b>ROC Inbox</b>: Reply there sends from admin@azref.com and logs it, so everyone can see it was handled. Reference <b>${ref}</b>.',True),"30px 28px 8px")+
   card([("Reference","${ref}",True,False),("Topic","${topic}",False,False),("Message","${message}",False,True)])+
   card([("Name","${name}",False,False),("Email","${email}",False,False),("Phone","${phone}",False,False),("Role","${role}",False,False),("USSF ID","${ussf}",False,False),("More details","${details}",False,True)],"#35a4e4")+
-  button("Open Contact Messages in the CMS",CMS+"ContactMessages"),
+  button("Open It In The ROC","https://admin.azref.com/#/inbox?status=all&q=${ref}"),
   "Sent automatically by the contact form on azref.com."))
 T['reg-confirm']=dict(subject="You're registered: ${event} (${ref})",html=shell("Registration confirmed",
   para(H1("You&rsquo;re in, ${name}.")+P("Thanks for registering. Here are your details. Keep your reference number handy in case anything comes up.",True),"30px 28px 8px")+
