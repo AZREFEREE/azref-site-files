@@ -70,7 +70,7 @@ window.ASRA = {
   ],
   resources: [
     { group: "Get Certified", items: ["FAQ", "New Referee Course", "Recertification", "Get Your Assignr Account", "Contact ASRA"] },
-    { group: "Get Games", items: ["List of Assignors", "Events Calendar"] },
+    { group: "Get Games", items: ["List of Assignors", "Events Calendar", "High School Soccer"] },
     { group: "Grow as a Referee", items: ["Request an Evaluation", "Webinars & Continuing Education", "Licenses & Upgrades", "Fitness Testing", "Request a Mentor"] },
     { group: "Paperwork", items: ["Red Card Report", "Replacement Badge", "Refereeing Out of State", "Letter of Good Standing", "Host a Referee Course", "Transfer to Arizona"] },
     { group: "Rules & Safety", items: ["IFAB Laws of the Game 2026/27", "Report Referee Abuse", "Referee Abuse Policy", "Recognize a Ref"] }
