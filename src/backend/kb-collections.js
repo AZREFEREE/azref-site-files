@@ -44,8 +44,8 @@ const SCHEMAS = {
         body: '<p>The 2026 Referee Academy is <strong>Saturday, December 19</strong> at the Avion Center in Chandler. Lunch is at 11:30 and training runs from 12:00 to 4:30.</p><p>There is no cap and no registration deadline, but please register so we can plan lunch and shirts. Bring a notebook or your phone for notes, your cards and a whistle, and dress comfortably.</p>',
         category: 'Event', linkUrl: '/webinars#academy', linkLabel: 'Academy details and registration', showIt: true, pinned: true },
       { title: 'ASRA launches Referee Education webinars for the 2026-27 season', slug: 'referee-education-webinars-2026-27', date: '2026-08-15',
-        summary: 'New Referee Orientation every Monday at 8 PM, and Referee Open Office Hours the first Sunday of each month at 8 PM, both on Zoom.',
-        body: '<p>This season ASRA is running two free webinar series on Zoom:</p><ul><li><p><strong>New Referee Orientation</strong>, every Monday at 8 PM: what to expect in your first games, how assignors work and how to get started in Assignr.</p></li><li><p><strong>Referee Open Office Hours</strong>, the first Sunday of each month at 8 PM. Bring any question.</p></li></ul><p>Can not make it live? The orientation is also on YouTube.</p>',
+        summary: 'New Referee Orientation at 8 PM on the Monday after each week with a new referee class, and Referee Open Office Hours the first Sunday of each month at 8 PM, both on Zoom.',
+        body: '<p>This season ASRA is running two free webinar series on Zoom:</p><ul><li><p><strong>New Referee Orientation</strong>, 8 PM on the Monday after each week with a new referee class: what to expect in your first games, how assignors work and how to get started in Assignr.</p></li><li><p><strong>Referee Open Office Hours</strong>, the first Sunday of each month at 8 PM. Bring any question.</p></li></ul><p>Can not make it live? The orientation is also on YouTube.</p>',
         category: 'Education', linkUrl: '/webinars', linkLabel: 'See the webinar schedule', showIt: true, pinned: false }
     ]
   }
