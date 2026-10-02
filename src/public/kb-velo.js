@@ -83,7 +83,7 @@ export const PAGES = {
   'kb-fitness': ['licenses', 'fitness'],
   'kb-faq': ['faq'],
   'kb-assignors': ['assignors', 'programs'],
-  'kb-learn': ['edu'],
+  'kb-learn': ['edu', 'courses'],
   'kb-about': ['directors'],
   'kb-contact': [],
   'kb-register': ['edu'],
