@@ -1,14 +1,46 @@
 // backend/events.jsw
 // Event registration for Education Events rows whose Registration field is "On this site (ROC)".
-// Saves to CMS collection "EventRegistrations", ONE row per email per event: a second submit with the
-// same email updates that row (keeps the original ref and sign-up time) and returns updated: true.
-// Later this can forward to the ROC (POST https://request.azref.com/api/events/{id}/register, see
-// event-registration-spec.md) and keep this collection as the backup copy.
+//
+// 10/3/26: the ROC is the home for event registrations (admin.azref.com, Front Office -> Events).
+// Each sign-up goes to the ROC FIRST (asra-api k-events-register, server to server, header X-ASRA-Key =
+// Wix secret ASRA_EVENTS_KEY). The ROC issues the reference number and status; the confirmation email and
+// the admin@ notice use them. The CMS collection "EventRegistrations" stays as the backup copy (ONE row per
+// email per event; a second submit with the same email updates that row and the ROC row).
+// If the ROC can't be reached (or doesn't know the event), the sign-up is still saved here with a Wix-made
+// reference, inRoc = false, and the admin@ notice says it needs adding to the ROC.
 //
 // Collection "EventRegistrations" permissions: Read / Create / Update / Delete = Admin only (writes use suppressAuth).
 import wixData from 'wix-data';
 import { ensureCollection } from 'backend/kb-collections';
 import { sendEmail, sendAdmin } from 'backend/kb-mail';
+import { fetch } from 'wix-fetch';
+import { getSecret } from 'wix-secrets-backend';
+
+const ROC_REGISTER = 'https://knuchrlsmebojlzytrcs.functions.supabase.co/asra-api/k-events-register?event=';
+const ROC_EVENTS = 'https://admin.azref.com/#/events/';
+
+/**
+ * Send one registration to the ROC. Returns the ROC's answer ({ ok, ref, updated, status } or
+ * { ok:false, error, fields? }) or null when it couldn't be reached. Never throws.
+ */
+async function toRoc(eventKey, payload) {
+  try {
+    const key = await getSecret('ASRA_EVENTS_KEY');
+    if (!key) { console.error('events -> ROC: secret ASRA_EVENTS_KEY is missing'); return null; }
+    const res = await Promise.race([
+      fetch(ROC_REGISTER + encodeURIComponent(eventKey), { method: 'post',
+        headers: { 'Content-Type': 'application/json', 'X-ASRA-Key': key }, body: JSON.stringify(payload) }),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 8000))
+    ]);
+    let j = null; try { j = await res.json(); } catch (e) { j = null; }
+    if (!j || !j.ok) console.error('events -> ROC refused (' + res.status + '): ' + JSON.stringify(j));
+    return j;
+  } catch (e) {
+    console.error('events -> ROC failed: ' + (e && (e.message || e)));
+    return null;
+  }
+}
+function isoTime(v) { const d = v instanceof Date ? v : new Date(v); return isNaN(d.getTime()) ? '' : d.toISOString(); }
 
 const EVENTS = 'Import12';            // Education Events
 const COLLECTION = 'EventRegistrations';
@@ -63,7 +95,7 @@ function longDate(iso) {
   return `${DAYS[d.getUTCDay()]}, ${MONTHS[d.getUTCMonth()]} ${d.getUTCDate()}, ${m[1]}`;
 }
 /** Confirmation to the registrant + notification to admin@azref.com. Failures are logged only (backend/kb-mail.js). */
-async function mailRegistration(ev, rec, ref, status, updated) {
+async function mailRegistration(ev, rec, ref, status, updated, inRoc) {
   const when = [longDate(rec.eventDate), s(ev.timeText, 80), s(ev.venue, 120), s(ev.address, 200)].filter(Boolean).join('\n');
   const statusText = status === 'Waitlist' ? 'Waitlist (we\u2019ll contact you if a spot opens up)' : status;
   const details = [['Experience', rec.experience], ['Shirt', [rec.shirtFit, rec.shirtSize].filter(Boolean).join(' ')],
@@ -73,7 +105,10 @@ async function mailRegistration(ev, rec, ref, status, updated) {
     sendEmail('regConfirm', { email: rec.email, first: rec.firstName, last: rec.lastName },
       { ref, name: rec.firstName, event: ev.title, when, status: statusText, sessions: rec.sessionLabels }),
     sendAdmin('regAdmin', { ref, name: `${rec.firstName} ${rec.lastName}`, email: rec.email, phone: rec.phone, ussf: rec.ussfId,
-      event: ev.title, when, status: updated ? `${status} (updated)` : status, sessions: rec.sessionLabels, details })
+      event: ev.title, when, status: updated ? `${status} (updated)` : status, sessions: rec.sessionLabels, details,
+      eventId: rec.eventId,
+      where: inRoc ? 'It\u2019s in the ROC under Front Office \u2192 Events.'
+        : 'Heads up: this one did NOT reach the ROC automatically, so it\u2019s only in the Wix CMS for now. Add it in the ROC with + Add Someone (same reference number).' })
   ]);
   return res[0];
 }
@@ -122,34 +157,47 @@ export async function registerForEvent(eventItemId, data, eventId) {
   });
 
   const existing = await wixData.query(COLLECTION).eq('eventId', key).eq('email', r.email).limit(1).find(OPTS);
-  if (existing.items.length) {
-    const old = existing.items[0];
+  const old = existing.items.length ? existing.items[0] : null;
+
+  // 1) The ROC first: it decides the reference number and status (and keeps one row per email).
+  const payload = { source: 'Web', firstName: r.firstName, lastName: r.lastName, email: r.email, phone: r.phone,
+    ussfId: r.ussfId, sessions: r.sessions, experience: r.experience, shirtFit: r.shirtFit, shirtSize: r.shirtSize, dietary: r.dietary };
+  if (old && old.ref) { payload.ref = old.ref; payload.registeredAt = isoTime(old.registeredAt); } // heals one that never reached the ROC
+  const roc = await toRoc(key, payload);
+  if (roc && !roc.ok && roc.error === 'closed') return { ok: false, error: 'closed' };
+  if (roc && !roc.ok && roc.error === 'invalid') return { ok: false, error: 'invalid', fields: roc.fields || [] };
+  const inRoc = !!(roc && roc.ok && roc.ref);
+
+  if (old) {
     // Keep ref, status and original sign-up time (= place in line); overwrite the answers.
-    const upd = Object.assign({}, old, record, { _id: old._id, ref: old.ref, status: old.status === 'Cancelled' ? 'Registered' : old.status, registeredAt: old.registeredAt, updatedAt: new Date() });
+    const ref = inRoc ? roc.ref : old.ref;
+    const status = inRoc ? roc.status : (old.status === 'Cancelled' ? 'Registered' : old.status);
+    const upd = Object.assign({}, old, record, { _id: old._id, ref, status, inRoc: inRoc || !!old.inRoc, registeredAt: old.registeredAt, updatedAt: new Date() });
     await wixData.update(COLLECTION, upd, OPTS);
-    const emailed = await mailRegistration(ev, upd, old.ref, upd.status, true);
-    return { ok: true, ref: old.ref, updated: true, status: upd.status, emailed };
+    const emailed = await mailRegistration(ev, upd, ref, status, true, inRoc);
+    return { ok: true, ref, updated: true, status, emailed };
   }
 
-  // New registration: ref E-<4 letters of event id><YY>-NNNN, e.g. E-ACAD26-0039
-  const letters = String(key).replace(/[^a-z]/gi, '').slice(0, 4).toUpperCase() || 'EVNT';
-  const yy = (date || today).slice(2, 4);
-  const count = await wixData.query(COLLECTION).eq('eventId', key).count(OPTS);
-  let n = count + 1, ref = '';
-  for (let tries = 0; tries < 5; tries++, n++) {
-    const tryRef = `E-${letters}${yy}-${pad(n, 4)}`;
-    if (!(await wixData.query(COLLECTION).eq('ref', tryRef).count(OPTS))) { ref = tryRef; break; }
+  let ref = inRoc ? roc.ref : '', status = inRoc ? roc.status : 'Registered';
+  if (!inRoc) {
+    // Fallback only (ROC unreachable): ref E-<4 letters of event id><YY>-NNNN, e.g. E-ACAD26-0039
+    const letters = String(key).replace(/[^a-z]/gi, '').slice(0, 4).toUpperCase() || 'EVNT';
+    const yy = (date || today).slice(2, 4);
+    const count = await wixData.query(COLLECTION).eq('eventId', key).count(OPTS);
+    let n = count + 1;
+    for (let tries = 0; tries < 50; tries++, n++) {
+      const tryRef = `E-${letters}${yy}-${pad(n, 4)}`;
+      if (!(await wixData.query(COLLECTION).eq('ref', tryRef).count(OPTS))) { ref = tryRef; break; }
+    }
+    if (!ref) ref = `E-${letters}${yy}-${pad(1000 + Math.floor(Math.random() * 9000), 4)}`;
+    // Capacity (optional): when full, new sign-ups go on the waitlist.
+    const cap = parseInt(ev.capacity, 10);
+    if (cap > 0) {
+      const taken = await wixData.query(COLLECTION).eq('eventId', key).eq('status', 'Registered').count(OPTS);
+      if (taken >= cap) status = 'Waitlist';
+    }
   }
-  if (!ref) ref = `E-${letters}${yy}-${pad(1000 + Math.floor(Math.random() * 9000), 4)}`;
-
-  // Capacity (optional): when full, new sign-ups go on the waitlist.
-  let status = 'Registered';
-  const cap = parseInt(ev.capacity, 10);
-  if (cap > 0) {
-    const taken = await wixData.query(COLLECTION).eq('eventId', key).eq('status', 'Registered').count(OPTS);
-    if (taken >= cap) status = 'Waitlist';
-  }
-  await wixData.insert(COLLECTION, Object.assign(record, { ref, status, registeredAt: new Date(), updatedAt: new Date() }), OPTS);
-  const emailed = await mailRegistration(ev, record, ref, status, false);
+  await wixData.insert(COLLECTION, Object.assign(record, { ref, status, inRoc, registeredAt: new Date(), updatedAt: new Date() }), OPTS);
+  const emailed = await mailRegistration(ev, record, ref, status, false, inRoc);
   return { ok: true, ref, updated: false, status, emailed };
 }

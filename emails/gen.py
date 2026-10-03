@@ -65,10 +65,10 @@ T['reg-confirm']=dict(subject="You're registered: ${event} (${ref})",html=shell(
   button("Visit azref.com","https://www.azref.com"),
   "You&rsquo;re getting this because you registered for an event on azref.com."))
 T['reg-admin']=dict(subject="New registration ${ref}: ${event} - ${name}",html=shell("New event registration",
-  para(H1("${name} registered for ${event}")+P('Status: <b>${status}</b>. Contact them at '+A("mailto:${email}","${email}")+'. The full list is in the CMS under <b>Event Registrations</b>.',True),"30px 28px 8px")+
+  para(H1("${name} registered for ${event}")+P('Status: <b>${status}</b>. Contact them at '+A("mailto:${email}","${email}")+'. ${where}',True),"30px 28px 8px")+
   card([("Event","${event}",True,False),("When","${when}",False,False),("Reference","${ref}",True,False),("Sessions","${sessions}",False,True)],"#8bc26a")+
   card([("Name","${name}",False,False),("Email","${email}",False,False),("Phone","${phone}",False,False),("USSF ID","${ussf}",False,False),("More details","${details}",False,True)],"#35a4e4")+
-  button("Open Event Registrations in the CMS",CMS+"EventRegistrations"),
+  button("Open It In The ROC","https://admin.azref.com/#/events/${eventId}"),
   "Sent automatically by event registration on azref.com."))
 for k,v in T.items():
     open(os.path.join(D,k+".html"),"w").write(v["html"])

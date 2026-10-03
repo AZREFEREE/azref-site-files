@@ -12,7 +12,7 @@ export const EMAILS = {
   contactConfirm: 'VWm6OMe',   // "We got your message (${ref})"            -> the person who wrote in
   contactAdmin: 'VWp2VBZ',    // "New message ${ref}: ${topic} from ${name}" -> admin@azref.com (10/1/26: button + intro point to the ROC Inbox; was VWm79qB)
   regConfirm: 'VWm7fNy',      // "You're registered: ${event} (${ref})"       -> the registrant
-  regAdmin: 'VWm84py',         // "New registration ${ref}: ${event} - ${name}" -> admin@azref.com
+  regAdmin: 'VWm84py',         // "New registration ${ref}: ${event} - ${name}" -> admin@azref.com (10/3/26: button -> ROC Events, ${where} line, ${eventId}; same ID after the edit)
 };
 
 const appendOrCreate = elevate(contacts.appendOrCreateContact);
