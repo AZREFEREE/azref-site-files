@@ -12,6 +12,9 @@ import wixData from 'wix-data';
 import { ensureCollection } from 'backend/kb-collections';
 import { sendEmail, sendAdmin } from 'backend/kb-mail';
 import { fetch } from 'wix-fetch';
+import { secrets } from 'wix-secrets-backend.v2';
+import { elevate } from 'wix-auth';
+import { createHmac } from 'crypto';
 
 const COLLECTION = 'ContactMessages';
 const OPTS = { suppressAuth: true };
@@ -31,13 +34,48 @@ const TOPICS = {
 const ROLES = ['Referee', 'Parent or guardian of a referee', 'Assignor', 'Coach, club or league',
   'Tournament or event organizer', 'Someone thinking about refereeing', 'Other'];
 const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
-const ROC_IN = 'https://knuchrlsmebojlzytrcs.functions.supabase.co/asra-api/p-contact-in';
+const ROC_IN = 'https://api.azref.com/asra-api/p-contact-in';
+const elevatedGetSecretValue = elevate(secrets.getSecretValue);
+
+/** Read the shared signing key without ever returning it to page code. */
+async function contactKey() {
+  const result = await elevatedGetSecretValue('ASRA_CONTACT_KEY');
+  // Wix documents a response object, while its Velo sample treats the result as the value itself.
+  const key = typeof result === 'string' ? result : (result && typeof result.value === 'string' ? result.value : '');
+  if (!key) throw new Error('ASRA_CONTACT_KEY is missing or empty in Wix Secrets Manager');
+  return key;
+}
+
+/** HMAC-SHA256(key, message), encoded as lowercase hexadecimal. */
+function hmacSha256Hex(key, message) {
+  return createHmac('sha256', key).update(message, 'utf8').digest('hex');
+}
+
+/** Backend test vector shared with the ROC verifier. Must return { ok: true } before enforcement. */
+export async function asraSigSelfCheck() {
+  const body = '{"name":"Test Visitor","email":"test@example.com","topic":"other","message":"Signing test"}';
+  const got = hmacSha256Hex('asra-contact-test-vector-key', '1760400000.' + body);
+  const want = '18cbcb4afbad773d1ccd4d1964be1fa1a2eb2733853350b1b250f1116deda9e2';
+  return { ok: got === want, got, want };
+}
 
 /** Send the saved message to the ROC Inbox. Returns { ok, ref, id, roc } or null; never throws. */
 async function toRoc(payload) {
   try {
+    const key = await contactKey();
+    const body = JSON.stringify(payload); // Sign and send this exact string.
+    const timestamp = String(Math.floor(Date.now() / 1000));
+    const signature = hmacSha256Hex(key, `${timestamp}.${body}`);
     const res = await Promise.race([
-      fetch(ROC_IN, { method: 'post', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }),
+      fetch(ROC_IN, {
+        method: 'post',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-ASRA-Timestamp': timestamp,
+          'X-ASRA-Signature': 'v1=' + signature
+        },
+        body
+      }),
       new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 8000))
     ]);
     const j = await res.json();
