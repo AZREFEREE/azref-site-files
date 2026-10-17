@@ -89,7 +89,9 @@ export const PAGES = {
   'kb-register': ['edu'],
   'kb-abuse': [],
   'kb-notfound': [],
-  'kb-news': ['news']
+  'kb-news': ['news'],
+  'kb-sponsor': [],
+  'kb-sponsors': []
 };
 
 /**
