@@ -91,7 +91,8 @@ export const PAGES = {
   'kb-notfound': [],
   'kb-news': ['news'],
   'kb-sponsor': [],
-  'kb-sponsors': []
+  'kb-sponsors': [],
+  'kb-scholarship': ['courses']
 };
 
 /**
