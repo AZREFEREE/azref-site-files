@@ -379,8 +379,8 @@ function (document, location, history, KB) {
   function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
   var form=$('scApp'), sel=$('scCls');
   var COURSES=((window.ASRA&&window.ASRA.courses)||[]).filter(function(c){ return c.iso; });
-  COURSES.forEach(function(c,i){ var o=document.createElement('option'); o.value=String(i); o.textContent=c.city+', '+c.date+(c.time?' · '+c.time:'')+(c.venue?' · '+c.venue:''); sel.appendChild(o); });
-  var later=document.createElement('option'); later.value='later'; later.textContent='Not sure yet, show me later dates'; sel.appendChild(later);
+  COURSES.forEach(function(c,i){ var o=window.document.createElement('option'); o.value=String(i); o.textContent=c.city+', '+c.date+(c.time?' · '+c.time:'')+(c.venue?' · '+c.venue:''); sel.appendChild(o); });
+  var later=window.document.createElement('option'); later.value='later'; later.textContent='Not sure yet, show me later dates'; sel.appendChild(later);
   function course(){ var v=sel.value; return v&&v!=='later'?COURSES[+v]:null; }
 
   function age(dob,on){ if(!dob) return null; var b=new Date(dob+'T12:00:00'); if(isNaN(b)) return null; on=on||new Date(); var a=on.getFullYear()-b.getFullYear(), m=on.getMonth()-b.getMonth(); if(m<0||(m===0&&on.getDate()<b.getDate())) a--; return a; }
@@ -407,7 +407,7 @@ function (document, location, history, KB) {
   form.addEventListener('input',function(e){ clearErr(e.target); sync(); });
   form.addEventListener('change',function(e){ clearErr(e.target); sync(); });
 
-  function fail(key,msg){ var f=form.querySelector('[data-f="'+key+'"]'); if(!f) return; f.classList.add('sc-bad'); var m=document.createElement('span'); m.className='sc-msg'; m.textContent=msg; f.appendChild(m); }
+  function fail(key,msg){ var f=form.querySelector('[data-f="'+key+'"]'); if(!f) return; f.classList.add('sc-bad'); var m=window.document.createElement('span'); m.className='sc-msg'; m.textContent=msg; f.appendChild(m); }
   var EMAIL=/^[^@\s]+@[^@\s]+\.[^@\s]+$/;
   function validate(){
     $$('.sc-bad',form).forEach(function(f){ f.classList.remove('sc-bad'); }); $$('.sc-msg',form).forEach(function(m){ m.remove(); });

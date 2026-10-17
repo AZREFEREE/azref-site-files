@@ -420,7 +420,7 @@ function (document, location, history, KB) {
       {id:'gear',n:'Co-branded gear',d:'Hats or warm-ups with both logos for your scholarship referees.',quote:'Cost of gear'}]}
   ];
   var ADD={}; GROUPS.forEach(function(g){ g.items.forEach(function(a){ ADD[a.id]=a; }); });
-  function plain(h){ var t=document.createElement('div'); t.innerHTML=h; return t.textContent; }
+  function plain(h){ var t=window.document.createElement('div'); t.innerHTML=h; return t.textContent; }
   function priceLabel(a){ return a.free?'Free':a.quote?a.quote:a.mo?fmt(a.p)+'/mo':fmt(a.p)+(a.flat?' flat':''); }
 
   /* ---------- levels ---------- */
@@ -571,7 +571,7 @@ function (document, location, history, KB) {
     var payload={source:'azref.com/sponsor',name:d.name,email:d.email,phone:d.phone,role:'Other',topic:'other',message:message(d),website:d.website};
     KB.submit('sponsor',payload).then(function(j){ thanks(j.ref,d); }).catch(function(x){
       btn.disabled=false; btn.textContent='Send my sponsorship request';
-      var err=$('spErr'); if(!err){ err=document.createElement('p'); err.className='sp-err'; err.id='spErr'; err.setAttribute('role','alert'); btn.parentNode.insertBefore(err,btn); }
+      var err=$('spErr'); if(!err){ err=window.document.createElement('p'); err.className='sp-err'; err.id='spErr'; err.setAttribute('role','alert'); btn.parentNode.insertBefore(err,btn); }
       err.innerHTML='That didn&rsquo;t go through. <a href="'+mailto(d)+'">Send it by email instead</a> (your request is filled in), or email admin@azref.com.';
       if(x&&x.message) err.textContent=String(x.message);
     });
