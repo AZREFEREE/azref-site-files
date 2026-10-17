@@ -405,13 +405,13 @@ function (document, location, history, KB) {
       {id:'update',n:'The ASRA Update, presented by you',d:'Logo and a line in the monthly email to Arizona referees.',p:50,mo:true},
       {id:'kitcard',n:'Your card in every kit we ship',d:'A coupon or thank-you note in each starter kit.',p:100,mo:true},
       {id:'slide',n:'Welcome slide at every in-person class',d:'On screen as new referees walk in, statewide, all season.',p:500},
-      {id:'webinar',n:'Webinar sponsor',d:'&ldquo;Open Office Hours, brought to you by&rdquo; on the monthly Zoom.',p:50,mo:true}]},
+      {id:'webinar',n:'Webinar sponsor',d:'&ldquo;Brought to you by&rdquo; on New Referee Orientation and our other monthly training webinars.',p:50,mo:true}]},
     {name:'Name a program',c:'var(--green)',sub:'Own something referees will remember.',items:[
       {id:'rotm',n:'Referee of the Month',d:'Recognize a Ref winners, announced with your name and a gift card.',p:250,mo:true},
       {id:'lunch',n:'Referee Academy lunch table',d:'Your own table at the Academy lunch.',p:250},
-      {id:'fitness',n:'Fitness test day',d:'Covers the $35 test fee for young referees that day. Or $35 per referee tested.',p:250,flat:true},
+      {id:'fitness',n:'Fitness test sponsor',d:'Sponsor one of our four fitness tests a year. Set up a table with exclusive access to the referees testing that day.',p:250,flat:true},
       {id:'mentor',n:'Mentor Program, presenting sponsor',d:'&ldquo;The ASRA Mentor Program, presented by you.&rdquo;',p:1000,prog:true},
-      {id:'women',n:'Women&rsquo;s Development Group, presenting sponsor',d:'Support the program growing and advancing women referees in Arizona.',p:500,prog:true}]},
+      {id:'women',n:'Women&rsquo;s Development Group, presenting sponsor',d:'Support the program growing and advancing women referees in Arizona.',p:1000,prog:true}]},
     {name:'Be there',c:'var(--red)',sub:'Show up at the fields where it all happens.',items:[
       {id:'tent',n:'Referee tent at a 500+ game tournament',d:'Shade, water and snacks for the crews, with your banner on it.',p:750},
       {id:'coin2',n:'Do the coin toss',d:'Your team does the ceremonial toss at a State Cup final.',p:500},
