@@ -3,7 +3,7 @@
 // Edit js/kb-scholarship.js, not this file. After changing any js/ file, run: bash tools/bump-version.sh
 (function () {
   var VERSION = '202610170241';
-  var src = 'https://cdn.jsdelivr.net/gh/AZREFEREE/azref-site-files@main/js/kb-scholarship.js?v=' + VERSION;
+  var src = 'https://cdn.jsdelivr.net/gh/AZREFEREE/azref-site-files@866172e/js/kb-scholarship.js?v=' + VERSION;
   if (document.querySelector('script[src="' + src + '"]')) return;
   var s = document.createElement('script');
   s.src = src;
