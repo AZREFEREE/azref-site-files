@@ -4,15 +4,15 @@
 // 10/3/26: the ROC is the home for event registrations (admin.azref.com, Front Office -> Events).
 // Each sign-up goes to the ROC FIRST (asra-api k-events-register, server to server, header X-ASRA-Key =
 // Wix secret ASRA_EVENTS_KEY). The ROC issues the reference number and status; the confirmation email and
-// the admin@ notice use them. The CMS collection "EventRegistrations" stays as the backup copy (ONE row per
+// the events@ notice use them. The CMS collection "EventRegistrations" stays as the backup copy (ONE row per
 // email per event; a second submit with the same email updates that row and the ROC row).
 // If the ROC can't be reached (or doesn't know the event), the sign-up is still saved here with a Wix-made
-// reference, inRoc = false, and the admin@ notice says it needs adding to the ROC.
+// reference, inRoc = false, and the events@ notice says it needs adding to the ROC.
 //
 // Collection "EventRegistrations" permissions: Read / Create / Update / Delete = Admin only (writes use suppressAuth).
 import wixData from 'wix-data';
 import { ensureCollection } from 'backend/kb-collections';
-import { sendEmail, sendAdmin } from 'backend/kb-mail';
+import { sendEmail, sendEvents } from 'backend/kb-mail';
 import { fetch } from 'wix-fetch';
 import { getSecret } from 'wix-secrets-backend';
 
@@ -94,7 +94,7 @@ function longDate(iso) {
   const d = new Date(Date.UTC(+m[1], +m[2] - 1, +m[3]));
   return `${DAYS[d.getUTCDay()]}, ${MONTHS[d.getUTCMonth()]} ${d.getUTCDate()}, ${m[1]}`;
 }
-/** Confirmation to the registrant + notification to admin@azref.com. Failures are logged only (backend/kb-mail.js). */
+/** Confirmation to the registrant + notification to events@azref.com (EVENTS_EMAIL in kb-mail.js). Failures are logged only (backend/kb-mail.js). */
 async function mailRegistration(ev, rec, ref, status, updated, inRoc) {
   const when = [longDate(rec.eventDate), s(ev.timeText, 80), s(ev.venue, 120), s(ev.address, 200)].filter(Boolean).join('\n');
   const statusText = status === 'Waitlist' ? 'Waitlist (we\u2019ll contact you if a spot opens up)' : status;
@@ -104,7 +104,7 @@ async function mailRegistration(ev, rec, ref, status, updated, inRoc) {
   const res = await Promise.all([
     sendEmail('regConfirm', { email: rec.email, first: rec.firstName, last: rec.lastName },
       { ref, name: rec.firstName, event: ev.title, when, status: statusText, sessions: rec.sessionLabels }),
-    sendAdmin('regAdmin', { ref, name: `${rec.firstName} ${rec.lastName}`, email: rec.email, phone: rec.phone, ussf: rec.ussfId,
+    sendEvents('regAdmin', { ref, name: `${rec.firstName} ${rec.lastName}`, email: rec.email, phone: rec.phone, ussf: rec.ussfId,
       event: ev.title, when, status: updated ? `${status} (updated)` : status, sessions: rec.sessionLabels, details,
       eventId: rec.eventId,
       where: inRoc ? 'It\u2019s in the ROC under Front Office \u2192 Events.'
