@@ -2,8 +2,8 @@
 // served by jsDelivr (Wix's code bundler breaks native custom element classes, so it can't be bundled here).
 // Edit js/kb-about.js, not this file. After changing any js/ file, run: bash tools/bump-version.sh
 (function () {
-  var VERSION = '202611060330';
-  var src = 'https://cdn.jsdelivr.net/gh/AZREFEREE/azref-site-files@10edb4e/js/kb-about.js?v=' + VERSION;
+  var VERSION = '202611070302';
+  var src = 'https://cdn.jsdelivr.net/gh/AZREFEREE/azref-site-files@1e00740/js/kb-about.js?v=' + VERSION;
   if (document.querySelector('script[src="' + src + '"]')) return;
   var s = document.createElement('script');
   s.src = src;
