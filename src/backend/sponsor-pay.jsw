@@ -1,0 +1,235 @@
+// backend/sponsor-pay.jsw
+// "Pay now" for /sponsor: builds a Stripe Checkout page for the sponsorship the visitor picked, so a company can pay by
+// card or bank transfer (ACH) right away instead of waiting for an invoice. Stripe emails the receipt.
+//
+// How it fits together (Nov 2026):
+//   1. Page code saves the request first through backend/contact.jsw (ContactMessages + ROC Inbox + emails) -> C- number.
+//   2. createSponsorCheckout() prices the order HERE, from the table below (never from the browser), and creates a
+//      Stripe Checkout Session with that C- number in its metadata. The browser is sent to session.url.
+//   3. Stripe sends the sponsor back to /sponsor?cs=<session id>. checkoutStatus() reads the session and the page shows
+//      "Payment received" (card) or "Bank payment on its way" (ACH, which takes a few business days to clear).
+//
+// Setup (once): Wix Secrets Manager secret STRIPE_SPONSOR_KEY = a Stripe RESTRICTED key (live) with
+//   Checkout Sessions: Write. Without it, createSponsorCheckout returns { ok:false, error:'not-configured' } and the page
+//   falls back to the normal "we'll email your invoice" thank-you, so nothing breaks.
+//
+// PRICES: keep LEVELS / EXTRAS in step with LV / GROUPS in js/kb-sponsor.js. If they ever disagree, the order is
+// refused with error 'price' and the sponsor gets the invoice path instead of being charged a surprise amount.
+import wixData from 'wix-data';
+import { fetch } from 'wix-fetch';
+import { secrets } from 'wix-secrets-backend.v2';
+import { elevate } from 'wix-auth';
+
+const SITE = 'https://www.azref.com';
+const OPTS = { suppressAuth: true };
+const STRIPE = 'https://api.stripe.com/v1';
+const STRIPE_VERSION = '2024-06-20';   // pinned: this version still lets us pick card OR ACH per checkout (payment_method_types)
+const elevatedGetSecretValue = elevate(secrets.getSecretValue);
+
+const LEVELS = {
+  coin: { name: 'Coin Toss', amt: 100 },
+  flag: { name: 'Raise the Flag', amt: 500 },
+  whistle: { name: 'The Whistle', amt: 1000 },
+  crew: { name: 'Full Crew', amt: 2500 },
+  gold: { name: 'Golden Whistle', amt: 5000 }
+};
+const EXTRAS = {
+  cal: { name: '"Presented by" on the Events Calendar', p: 50, mo: true },
+  update: { name: 'The ASRA Update, presented by you', p: 50, mo: true },
+  kitcard: { name: 'Your card in every kit we ship', p: 100, mo: true },
+  slide: { name: 'Welcome slide at every in-person class', p: 500 },
+  webinar: { name: 'Webinar sponsor', p: 50, mo: true },
+  rotm: { name: 'Referee of the Month', p: 250, mo: true },
+  lunch: { name: 'Referee Academy lunch table', p: 250 },
+  fitness: { name: 'Fitness test sponsor', p: 250 },
+  mentor: { name: 'Mentor Program, presenting sponsor', p: 1000, prog: true },
+  women: { name: "Women's Development Group, presenting sponsor", p: 1000, prog: true },
+  tent: { name: 'Referee tent at a 500+ game tournament', p: 750 },
+  coin2: { name: 'Do the coin toss (State Cup final)', p: 500 },
+  signs: { name: 'Respect signs at the fields', quote: true },
+  pack: { name: 'Pack-the-kits day', free: true },
+  gear: { name: 'Co-branded gear', quote: true }
+};
+const MONTHS = [3, 6, 12];
+const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+const REF_RE = /^C-\d{6}-\d{4}$/;
+
+/** Processing fee the sponsor can choose to cover, in cents, so ASRA nets the full amount.
+ *  Card: 2.9% + 30¢. ACH: 0.8%, capped at $5. Same formula as feeCents() in js/kb-sponsor.js. */
+export function feeCents(totalCents, method) {
+  if (!(totalCents > 0)) return 0;
+  if (method === 'ach') return Math.min(Math.ceil(totalCents / 0.992) - totalCents, 500);
+  return Math.ceil((totalCents + 30) / 0.971) - totalCents;
+}
+
+function s(v, max) { return String(v === undefined || v === null ? '' : v).trim().slice(0, max || 200); }
+
+/** Price an order from the table. Returns { lines:[{name, cents}], totalCents, quotes:[names], logo } or { error }. */
+function priceOrder(order) {
+  const lv = order.level === 'none' ? null : LEVELS[order.level];
+  if (order.level !== 'none' && !lv) return { error: 'level' };
+  const ids = (Array.isArray(order.adds) ? order.adds : []).map(String).filter((id, i, a) => EXTRAS[id] && a.indexOf(id) === i);
+  const months = order.months && typeof order.months === 'object' ? order.months : {};
+  // Golden Whistle includes one program (the first one ticked).
+  const included = order.level === 'gold' ? (ids.filter((id) => EXTRAS[id].prog)[0] || null) : null;
+  const lines = [], quotes = [];
+  if (lv) lines.push({ name: `${lv.name} sponsorship`, cents: lv.amt * 100 });
+  ids.forEach((id) => {
+    const a = EXTRAS[id];
+    if (a.quote) { quotes.push(a.name); return; }
+    if (a.free || id === included) return;
+    if (a.mo) {
+      const m = MONTHS.indexOf(Number(months[id])) > -1 ? Number(months[id]) : 12;
+      lines.push({ name: `${a.name} (${m} months)`, cents: a.p * m * 100 });
+    } else lines.push({ name: a.name, cents: a.p * 100 });
+  });
+  const totalCents = lines.reduce((t, l) => t + l.cents, 0);
+  if (!lines.length && !ids.length) return { error: 'empty' };
+  return { lines, totalCents, quotes, included };
+}
+
+async function stripeKey() {
+  let result;
+  try { result = await elevatedGetSecretValue('STRIPE_SPONSOR_KEY'); } catch (e) { return ''; }
+  return typeof result === 'string' ? result : (result && typeof result.value === 'string' ? result.value : '');
+}
+
+/** Stripe wants form encoding with bracket keys: line_items[0][price_data][currency]=usd */
+function formEncode(obj, prefix, out) {
+  out = out || [];
+  Object.keys(obj).forEach((k) => {
+    const v = obj[k], key = prefix ? `${prefix}[${k}]` : k;
+    if (v === undefined || v === null || v === '') return;
+    if (typeof v === 'object') formEncode(v, key, out);
+    else out.push(encodeURIComponent(key) + '=' + encodeURIComponent(String(v)));
+  });
+  return out.join('&');
+}
+
+async function stripe(key, method, path, body) {
+  const res = await fetch(STRIPE + path, {
+    method,
+    headers: { Authorization: 'Bearer ' + key, 'Content-Type': 'application/x-www-form-urlencoded', 'Stripe-Version': STRIPE_VERSION },
+    body: body ? formEncode(body) : undefined
+  });
+  const j = await res.json();
+  if (!res.ok) { const e = new Error((j && j.error && j.error.message) || ('Stripe HTTP ' + res.status)); e.stripe = j && j.error; throw e; }
+  return j;
+}
+
+/**
+ * createSponsorCheckout(order) -> { ok:true, url, totalCents } | { ok:false, error }
+ * order: { ref, email, company, level ('coin'..'gold' | 'none'), adds:[ids], months:{id:3|6|12},
+ *          method ('card'|'ach'), coverFees (bool), expectCents (what the page showed, fee included) }
+ * The ref must be a sponsorship request saved in ContactMessages in the last 6 hours with the same email.
+ */
+export async function createSponsorCheckout(order) {
+  order = order || {};
+  const ref = s(order.ref, 20), email = s(order.email, 200).toLowerCase(), company = s(order.company, 120);
+  const method = order.method === 'ach' ? 'ach' : 'card';
+  if (!REF_RE.test(ref) || !EMAIL_RE.test(email) || !company) return { ok: false, error: 'invalid' };
+
+  const priced = priceOrder(order);
+  if (priced.error) return { ok: false, error: priced.error };
+  if (priced.totalCents < 100) return { ok: false, error: 'nothing-to-pay' };
+  const fee = order.coverFees ? feeCents(priced.totalCents, method) : 0;
+  const grand = priced.totalCents + fee;
+  if (order.expectCents !== undefined && Number(order.expectCents) !== grand) {
+    console.error(`sponsor-pay: price mismatch for ${ref}: page ${order.expectCents}, server ${grand}`);
+    return { ok: false, error: 'price' };
+  }
+
+  const saved = await wixData.query('ContactMessages').eq('ref', ref).eq('email', email)
+    .gt('_createdDate', new Date(Date.now() - 6 * 3600 * 1000)).find(OPTS).catch(() => null);
+  const row = saved && saved.items && saved.items[0];
+  if (!row || String(row.message || '').indexOf('SPONSORSHIP REQUEST') !== 0) return { ok: false, error: 'invalid' };
+
+  // From here on a failure means the sponsor sees "we'll email your invoice", so say so on the saved request.
+  const fallBack = async (error) => {
+    try { await wixData.update('ContactMessages', Object.assign({}, row, { payment: `Pay now did not open (${error}): send a Stripe invoice` }), OPTS); }
+    catch (e) { console.error('sponsor-pay: could not note the fallback on ' + ref, e); }
+    return { ok: false, error };
+  };
+  const key = await stripeKey();
+  if (!key) return fallBack('not-configured');
+
+  const lines = priced.lines.slice();
+  if (fee) lines.push({ name: method === 'ach' ? 'Bank transfer fee, covered by you (thank you!)' : 'Card processing fee, covered by you (thank you!)', cents: fee });
+  const level = order.level === 'none' ? 'Extras only' : LEVELS[order.level].name;
+  const meta = { ref, company, level, source: 'azref.com/sponsor', covered_fees: fee ? (fee / 100).toFixed(2) : '0',
+    quoted_items: priced.quotes.join('; ').slice(0, 450) };
+  const body = {
+    mode: 'payment',
+    customer_email: email,
+    customer_creation: 'always',
+    client_reference_id: ref,
+    submit_type: 'pay',
+    payment_method_types: method === 'ach' ? ['us_bank_account'] : ['card'],
+    line_items: lines.map((l) => ({ quantity: 1, price_data: { currency: 'usd', unit_amount: l.cents, product_data: { name: l.name } } })),
+    metadata: meta,
+    payment_intent_data: {
+      description: `ASRA sponsorship ${ref}: ${company} (${level})`.slice(0, 350),
+      receipt_email: email,
+      metadata: meta
+    },
+    success_url: `${SITE}/sponsor?cs={CHECKOUT_SESSION_ID}#build`,
+    cancel_url: `${SITE}/sponsor?unpaid=${encodeURIComponent(ref)}#build`,
+    custom_text: { submit: { message: `Reference ${ref}. Soccer Referees of Arizona, Inc. dba Arizona State Referee Administration is a 501(c)(3) nonprofit.` } }
+  };
+  let session;
+  try {
+    try {
+      session = await stripe(key, 'POST', '/checkout/sessions', body);
+    } catch (e1) {
+      // Newer Stripe API versions dropped payment_method_types (methods come from Dashboard > Settings > Payment methods).
+      // We pin Stripe-Version 2024-06-20, which still takes it; if Stripe ever refuses it, retry with the Dashboard list.
+      if (!/payment_method_types/.test(e1.message) || /us_bank_account/.test(e1.message)) throw e1;
+      console.error('sponsor-pay: payment_method_types refused, using Dashboard payment methods: ' + e1.message);
+      delete body.payment_method_types;
+      session = await stripe(key, 'POST', '/checkout/sessions', body);
+    }
+  } catch (e) {
+    console.error('sponsor-pay: Stripe refused the session for ' + ref + ': ' + e.message);
+    // ACH not switched on in Stripe yet: offer card instead of failing outright.
+    if (method === 'ach' && /us_bank_account|payment method type/i.test(e.message)) return fallBack('ach-off');
+    return fallBack('stripe');
+  }
+
+  try {
+    await wixData.update('ContactMessages', Object.assign({}, row, {
+      payment: `Pay now: Stripe Checkout started, $${(grand / 100).toFixed(2)} (${method}${fee ? ', fees covered' : ''})`,
+      stripeSession: session.id
+    }), OPTS);
+  } catch (e) { console.error('sponsor-pay: could not note the session on ' + ref, e); }
+
+  return { ok: true, url: session.url, totalCents: grand };
+}
+
+/**
+ * checkoutStatus(sessionId) -> { ok:true, state:'paid'|'processing'|'open'|'expired', ref, company, email, amount, method, level }
+ * Called when Stripe sends the sponsor back to /sponsor?cs=...
+ */
+export async function checkoutStatus(sessionId) {
+  const id = s(sessionId, 300);
+  if (!/^cs_(live|test)_[A-Za-z0-9]+$/.test(id)) return { ok: false, error: 'invalid' };
+  const key = await stripeKey();
+  if (!key) return { ok: false, error: 'not-configured' };
+  let cs;
+  try { cs = await stripe(key, 'GET', '/checkout/sessions/' + id); }
+  catch (e) { console.error('sponsor-pay: status lookup failed: ' + e.message); return { ok: false, error: 'stripe' }; }
+  const md = cs.metadata || {};
+  const state = cs.payment_status === 'paid' ? 'paid' : cs.status === 'complete' ? 'processing' : cs.status === 'expired' ? 'expired' : 'open';
+  const out = { ok: true, state, ref: md.ref || cs.client_reference_id || '', company: md.company || '', level: md.level || '',
+    email: (cs.customer_details && cs.customer_details.email) || cs.customer_email || '', amount: cs.amount_total || 0,
+    quoted: md.quoted_items || '' };
+
+  if (out.ref && (state === 'paid' || state === 'processing')) {
+    try {
+      const r = await wixData.query('ContactMessages').eq('ref', out.ref).find(OPTS);
+      const row = r.items[0];
+      const note = state === 'paid' ? `PAID $${(out.amount / 100).toFixed(2)} online (Stripe ${id.slice(0, 18)}...)` : `Bank payment of $${(out.amount / 100).toFixed(2)} processing (Stripe)`;
+      if (row && row.payment !== note) await wixData.update('ContactMessages', Object.assign({}, row, { payment: note }), OPTS);
+    } catch (e) { console.error('sponsor-pay: could not mark ' + out.ref, e); }
+  }
+  return out;
+}
